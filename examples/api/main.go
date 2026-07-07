@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/suyotech/flattradeapi-go/api"
 )
@@ -11,14 +10,17 @@ import (
 func main() {
 	ctx := context.Background()
 
-	client := api.NewClient(api.WithAPIKeys(
-		os.Getenv("FLATTRADE_API_KEY"),
-		os.Getenv("FLATTRADE_API_SECRET"),
-	))
+	apiKey := "your-api-key"
+	apiSecret := "your-api-secret"
+	requestCode := ""
+	userID := "your-user-id"
+	accessToken := ""
+
+	client := api.NewClient(api.WithAPIKeys(apiKey, apiSecret))
 
 	fmt.Println("login URL:", client.GetLoginURL())
 
-	if requestCode := os.Getenv("FLATTRADE_REQUEST_CODE"); requestCode != "" {
+	if requestCode != "" {
 		session, err := client.GenerateSession(ctx, api.SessionRequest{
 			RequestCode: requestCode,
 		})
@@ -28,8 +30,8 @@ func main() {
 		fmt.Printf("session: %+v\n", session)
 	}
 
-	client.UserID = os.Getenv("FLATTRADE_USER_ID")
-	client.SetAccessToken(os.Getenv("FLATTRADE_ACCESS_TOKEN"))
+	client.UserID = userID
+	client.SetAccessToken(accessToken)
 
 	if client.AccessToken == "" || client.UserID == "" {
 		return

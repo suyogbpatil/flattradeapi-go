@@ -164,9 +164,7 @@ func (c *Client) PlaceOrder(ctx context.Context, req OrderRequest) (*OrderRespon
 }
 
 func (c *Client) ModifyOrder(ctx context.Context, req ModifyOrderRequest) (*OrderResponse, error) {
-	if req.UserID == "" {
-		req.UserID = c.UserID
-	}
+	c.fillOrderDefaults(&req.UserID, &req.AccountID)
 
 	var out OrderResponse
 	if err := c.postAuthenticated(ctx, EndpointModifyOrder, req, &out); err != nil {
@@ -176,9 +174,7 @@ func (c *Client) ModifyOrder(ctx context.Context, req ModifyOrderRequest) (*Orde
 }
 
 func (c *Client) CancelOrder(ctx context.Context, req CancelOrderRequest) (*OrderResponse, error) {
-	if req.UserID == "" {
-		req.UserID = c.UserID
-	}
+	c.fillUser(&req.UserID)
 
 	var out OrderResponse
 	if err := c.postAuthenticated(ctx, EndpointCancelOrder, req, &out); err != nil {

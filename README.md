@@ -81,7 +81,8 @@ client := ws.NewWSClient(userID, accountID, accessToken).
 	})
 
 err := client.Connect(ctx)
-err = client.SubscribeTouchline("NSE|26000")
+nifty := instruments.Instrument{Exchange: "NSE", Token: "26000", Symbol: "NIFTY"}
+err = client.SubscribeTouchline(nifty)
 ```
 
 ## Instruments

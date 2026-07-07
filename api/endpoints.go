@@ -4,7 +4,7 @@ const (
 	DefaultBaseURL            = "https://piconnect.flattrade.in/PiConnectAPI"
 	DefaultLoginURL           = "https://auth.flattrade.in/"
 	DefaultSessionURL         = "https://authapi.flattrade.in/trade/apitoken"
-	DefaultWebSocketURL       = "wss://piconnect.flattrade.in/PiConnectWSTp/"
+	DefaultWebSocketURL       = "wss://piconnect.flattrade.in/PiConnectWSAPI/"
 	DefaultScripMasterBaseURL = "https://flattrade.s3.ap-south-1.amazonaws.com/scripmaster"
 
 	loginURLAPIKeyName = "app_key"

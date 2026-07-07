@@ -154,8 +154,16 @@ func (c *Client) postAuthenticated(ctx context.Context, endpoint string, payload
 	if c.AccessToken == "" {
 		return errors.New("access token is required")
 	}
+	if c.UserID == "" {
+		return errors.New("user id is required")
+	}
 
-	data, err := json.Marshal(payload)
+	payloadWithUser, err := c.withUserID(payload)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(payloadWithUser)
 	if err != nil {
 		return err
 	}
@@ -171,6 +179,27 @@ func (c *Client) postAuthenticated(ctx context.Context, endpoint string, payload
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	return c.Do(req, out)
+}
+
+func (c *Client) withUserID(payload any) (any, error) {
+	if payload == nil {
+		return map[string]string{"uid": c.UserID}, nil
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	var fields map[string]any
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+	if fields["uid"] == nil || fields["uid"] == "" {
+		fields["uid"] = c.UserID
+	}
+
+	return fields, nil
 }
 
 func (c *Client) url(path string) string {

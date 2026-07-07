@@ -1,6 +1,22 @@
 package api
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+	_ "time/tzdata"
+)
+
+var istLocation = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		return time.FixedZone("IST", 5*60*60+30*60)
+	}
+	return loc
+}()
 
 type ExchangeRequest struct {
 	UserID   string `json:"uid,omitempty"`
@@ -23,14 +39,57 @@ type TimePriceSeriesRequest struct {
 }
 
 type Candle struct {
-	Time    string `json:"time,omitempty"`
-	Open    string `json:"into,omitempty"`
-	High    string `json:"inth,omitempty"`
-	Low     string `json:"intl,omitempty"`
-	Close   string `json:"intc,omitempty"`
-	Volume  string `json:"intv,omitempty"`
-	OpenInt string `json:"intoi,omitempty"`
-	Value   string `json:"v,omitempty"`
+	Time    time.Time `json:"time,omitempty"`
+	Open    string    `json:"into,omitempty"`
+	High    string    `json:"inth,omitempty"`
+	Low     string    `json:"intl,omitempty"`
+	Close   string    `json:"intc,omitempty"`
+	Volume  string    `json:"intv,omitempty"`
+	OpenInt string    `json:"intoi,omitempty"`
+	Value   string    `json:"v,omitempty"`
+}
+
+func (c *Candle) UnmarshalJSON(data []byte) error {
+	type candleAlias Candle
+	var raw struct {
+		candleAlias
+		Time string `json:"time,omitempty"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	*c = Candle(raw.candleAlias)
+	if strings.TrimSpace(raw.Time) == "" {
+		return nil
+	}
+
+	parsed, err := parseCandleTime(raw.Time)
+	if err != nil {
+		return err
+	}
+	c.Time = parsed
+	return nil
+}
+
+func parseCandleTime(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if unix, err := strconv.ParseInt(value, 10, 64); err == nil {
+		return time.Unix(unix, 0).In(istLocation), nil
+	}
+
+	for _, layout := range []string{
+		"02-01-2006 15:04:05",
+		"02-01-2006 15:04",
+		"2006-01-02 15:04:05",
+		"2006-01-02 15:04",
+	} {
+		if parsed, err := time.ParseInLocation(layout, value, istLocation); err == nil {
+			return parsed, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("parse candle time %q: unsupported format", value)
 }
 
 type EODChartDataRequest struct {
