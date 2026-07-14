@@ -182,7 +182,7 @@ func ReadCSV(r io.Reader) ([]Instrument, error) {
 			TradingSymbol: value(record, header, "trading_symbol", "tradingsymbol", "tsym"),
 			Expiry:        value(record, header, "expiry", "exp", "exd"),
 			Instrument:    value(record, header, "instrument", "instname", "instnam"),
-			OptionType:    value(record, header, "option_type", "optt", "opttype"),
+			OptionType:    value(record, header, "optiontype", "option_type", "optt", "opttype"),
 			Strike:        value(record, header, "strike", "strprc"),
 			TickSize:      value(record, header, "tick_size", "ti"),
 		})
