@@ -73,17 +73,52 @@ candles, err := client.TimePriceSeries(ctx, api.TimePriceSeriesRequest{
 
 ```go
 client := ws.NewWSClient(userID, accountID, accessToken).
+	SetReconnect(2*time.Second, 10).
+	SetLivenessTimeout(60*time.Second).
 	SetOnTick(func(tick ws.Tick) {
 		fmt.Println(tick)
 	}).
+	SetOnReconnected(func(info ws.ReconnectInfo) {
+		fmt.Printf("reconnected after attempt %d; restored %d touchline and %d depth tokens\n",
+			info.Attempt, info.TouchlineRestored, info.DepthRestored)
+	}).
+	SetOnDisconnected(func(err error) {
+		fmt.Println("websocket unavailable:", err)
+	}).
 	SetOnError(func(err error) {
-		fmt.Println(err)
+		fmt.Println("websocket diagnostic:", err)
 	})
 
 err := client.Connect(ctx)
 nifty := instruments.Instrument{Exchange: "NSE", Token: "26000", Symbol: "NIFTY"}
 err = client.SubscribeTouchline(nifty)
 ```
+
+The client records and deduplicates desired touchline, depth, order-update, and
+position-update subscriptions. After a reconnect is logged in, it restores the
+desired subscriptions and waits for every acknowledgement the broker protocol
+provides; only then does `OnReconnected` run. FlatTrade defines no acknowledgement
+for order-update subscription, so its successful socket write is the confirmation.
+Successful unsubscribe calls remove the corresponding desired state.
+`ResetSubscriptions` clears local desired state without sending an unsubscribe
+request.
+
+`SetReconnect(interval, max)` uses `interval` as the initial exponential-backoff
+delay (capped by `MaxReconnectInterval`) and `max` as retries after a connection
+has been lost; the defaults are 2 seconds and 10 retries. Use
+`DisableReconnect()` (or `SetReconnectEnabled(false)`) to explicitly disable SDK
+recovery. Zero permits no retries; a negative `max` retains the existing bounded
+setting. When SDK reconnect is enabled, applications should not start a second
+reconnect loop.
+
+`OnError` remains backward compatible and is diagnostic, not terminal. Typed
+errors and the `OnConnectionError`, `OnLoginError`, `OnSubscriptionError`, and
+`OnMessageError` callbacks separate failure categories. `OnDisconnected` and
+the legacy `OnClose` run only after the socket is intentionally disconnected or
+automatic recovery stops. `IsConnected()` and `LastMessageAt()` expose safe
+connection status. Liveness is refreshed by any valid broker message, including
+heartbeat acknowledgements; it does not depend on price changes or per-token
+tick frequency.
 
 ## Instruments
 

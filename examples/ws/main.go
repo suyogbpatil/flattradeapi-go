@@ -17,12 +17,14 @@ func main() {
 	accountID := userID
 	accessToken := "your-access-token"
 
-	client := ws.NewWSClient(userID, accountID, accessToken).SetOnTick(func(tick ws.Tick) {
+	client := ws.NewWSClient(userID, accountID, accessToken).SetReconnect(2*time.Second, 10).SetOnTick(func(tick ws.Tick) {
 		fmt.Printf("tick: %+v\n", tick)
+	}).SetOnReconnected(func(info ws.ReconnectInfo) {
+		fmt.Printf("ws reconnected; restored %d touchline tokens\n", info.TouchlineRestored)
 	}).SetOnError(func(err error) {
-		fmt.Println("ws error:", err)
-	}).SetOnClose(func(err error) {
-		fmt.Println("ws closed:", err)
+		fmt.Println("ws diagnostic:", err)
+	}).SetOnDisconnected(func(err error) {
+		fmt.Println("ws unavailable:", err)
 	})
 
 	if err := client.Connect(ctx); err != nil {
