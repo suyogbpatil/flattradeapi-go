@@ -1,12 +1,17 @@
 package ws
 
 import (
+	"bufio"
 	"context"
+	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -209,6 +214,79 @@ func (c *WSClient) SetSource(source string) *WSClient {
 		c.Source = source
 	}
 	return c
+}
+
+func (c *WSClient) SetProxy(proxyURL string) error {
+	c.dialer.Proxy = nil
+	c.dialer.NetDialContext = nil
+	if proxyURL == "" {
+		return nil
+	}
+
+	parsed, err := url.Parse(proxyURL)
+	if err != nil || parsed.Host == "" {
+		return fmt.Errorf("invalid proxy URL %q", proxyURL)
+	}
+	switch parsed.Scheme {
+	case "http":
+		c.dialer.Proxy = http.ProxyURL(parsed)
+	case "https":
+		c.dialer.NetDialContext = httpsProxyDialContext(parsed)
+	default:
+		return fmt.Errorf("unsupported websocket proxy scheme %q", parsed.Scheme)
+	}
+	return nil
+}
+
+func httpsProxyDialContext(proxyURL *url.URL) func(context.Context, string, string) (net.Conn, error) {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		proxyAddress := proxyURL.Host
+		if proxyURL.Port() == "" {
+			proxyAddress = net.JoinHostPort(proxyURL.Hostname(), "443")
+		}
+		dialer := tls.Dialer{Config: &tls.Config{ServerName: proxyURL.Hostname()}}
+		conn, err := dialer.DialContext(ctx, network, proxyAddress)
+		if err != nil {
+			return nil, err
+		}
+		if deadline, ok := ctx.Deadline(); ok {
+			if err := conn.SetDeadline(deadline); err != nil {
+				conn.Close()
+				return nil, err
+			}
+		}
+
+		header := make(http.Header)
+		if proxyURL.User != nil {
+			password, _ := proxyURL.User.Password()
+			credentials := proxyURL.User.Username() + ":" + password
+			header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(credentials)))
+		}
+		request := &http.Request{
+			Method: http.MethodConnect,
+			URL:    &url.URL{Opaque: address},
+			Host:   address,
+			Header: header,
+		}
+		if err := request.Write(conn); err != nil {
+			conn.Close()
+			return nil, err
+		}
+		response, err := http.ReadResponse(bufio.NewReader(conn), request)
+		if err != nil {
+			conn.Close()
+			return nil, err
+		}
+		if response.StatusCode != http.StatusOK {
+			conn.Close()
+			return nil, fmt.Errorf("proxy CONNECT failed: %s", response.Status)
+		}
+		if err := conn.SetDeadline(time.Time{}); err != nil {
+			conn.Close()
+			return nil, err
+		}
+		return conn, nil
+	}
 }
 
 // SetReconnect sets the initial retry delay and retries after a lost connection.

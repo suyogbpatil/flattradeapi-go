@@ -26,10 +26,13 @@ type Client struct {
 type Option func(*Client)
 
 func NewClient(opts ...Option) *Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = nil
 	c := &Client{
 		BaseURL: DefaultBaseURL,
 		HTTPClient: &http.Client{
-			Timeout: 15 * time.Second,
+			Timeout:   15 * time.Second,
+			Transport: transport,
 		},
 	}
 
@@ -83,6 +86,30 @@ func WithAPIKeys(apiKey, apiSecret string) Option {
 
 func (c *Client) SetAccessToken(token string) {
 	c.AccessToken = token
+}
+
+func (c *Client) SetProxy(proxyURL string) error {
+	var proxy func(*http.Request) (*url.URL, error)
+	if proxyURL != "" {
+		parsed, err := url.Parse(proxyURL)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return fmt.Errorf("invalid proxy URL %q", proxyURL)
+		}
+		proxy = http.ProxyURL(parsed)
+	}
+
+	var transport *http.Transport
+	switch current := c.HTTPClient.Transport.(type) {
+	case nil:
+		transport = http.DefaultTransport.(*http.Transport).Clone()
+	case *http.Transport:
+		transport = current.Clone()
+	default:
+		return errors.New("cannot set proxy on a custom HTTP transport")
+	}
+	transport.Proxy = proxy
+	c.HTTPClient.Transport = transport
+	return nil
 }
 
 func (c *Client) NewRequest(ctx context.Context, method, path string, payload any) (*http.Request, error) {
